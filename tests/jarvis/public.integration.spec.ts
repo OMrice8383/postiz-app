@@ -1,7 +1,7 @@
 // Only synthetic organizations, states and responses. No Redis, SNS or database connection.
 import 'reflect-metadata';
-import { Logger } from '@nestjs/common';
-import { HEADERS_METADATA } from '@nestjs/common/constants';
+import { Logger, RequestMethod } from '@nestjs/common';
+import { HEADERS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 
 const redis = { set: jest.fn().mockResolvedValue('OK') };
 jest.doMock('@gitroom/nestjs-libraries/redis/redis.service', () => ({ ioRedis: redis }));
@@ -103,6 +103,10 @@ describe('public connect start', () => {
 });
 
 describe('secret-free recorded health', () => {
+  it('exposes the dedicated GET route', () => {
+    expect(Reflect.getMetadata(PATH_METADATA, controller.getIntegrationsHealth)).toBe('/integrations/health');
+    expect(Reflect.getMetadata(METHOD_METADATA, controller.getIntegrationsHealth)).toBe(RequestMethod.GET);
+  });
   it('scopes a dedicated six-column query to one organization, social and nondeleted records', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     const repository = { _integration: { model: { integration: { findMany } } } };
@@ -135,7 +139,7 @@ describe('secret-free recorded health', () => {
     await controller.getIntegrationsHealth({ id: 'fixture-store-b' });
     expect(integrationService.getPublicIntegrationHealth).toHaveBeenCalledWith('fixture-store-b');
   });
-  it.each(['', 'fixture-other-store'])('rejects organization override headers including empty values (%s)', async (override) => {
+  it.each(['', '   ', 'fixture-other-store'])('rejects organization override headers including empty values (%s)', async (override) => {
     await expect(controller.getIntegrationsHealth(org, override)).rejects.toMatchObject({ status: 403 });
     expect(integrationService.getPublicIntegrationHealth).not.toHaveBeenCalled();
   });
@@ -165,10 +169,25 @@ describe('existing public authentication and health override boundary', () => {
     expect(x.req.org.id).toBe(org.id);
     expect(x.next).toHaveBeenCalledTimes(1);
   });
-  it.each(['', 'fixture-store-b'])('rejects override before lookup, even for super-admin (%s)', async (override) => {
-    const x = make('fixture-store-a', override);
+  it.each([
+    '/api/public/v1/integrations/health',
+    '/api/public/v1/integrations/health/',
+    '/API/PUBLIC/V1/INTEGRATIONS/HEALTH/',
+    '/public/v1/integrations/health',
+    '/public/v1/integrations/health/',
+    '/PUBLIC/V1/INTEGRATIONS/HEALTH/',
+  ].flatMap((path) => ['', '   ', 'fixture-store-b'].map((override) => [path, override])))('rejects override before lookup, even for super-admin (%s, %s)', async (path, override) => {
+    const x = make('fixture-store-a', override, path);
     await x.middleware.use(x.req, x.res, x.next);
     expect(x.res.status).toHaveBeenCalledWith(403);
+    expect(x.organizations.canUseSuperAdminApi).not.toHaveBeenCalled();
+    expect(x.organizations.getOrgByIdWithSubscription).not.toHaveBeenCalled();
+    expect(x.next).not.toHaveBeenCalled();
+  });
+  it.each([undefined, 'invalid-fixture'])('authenticates before rejecting override (%s)', async (authorization) => {
+    const x = make(authorization, 'fixture-store-b');
+    await x.middleware.use(x.req, x.res, x.next);
+    expect(x.res.status).toHaveBeenCalledWith(401);
     expect(x.organizations.getOrgByIdWithSubscription).not.toHaveBeenCalled();
     expect(x.next).not.toHaveBeenCalled();
   });

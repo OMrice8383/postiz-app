@@ -4,6 +4,8 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
+  Headers,
   HttpException,
   Param,
   Post,
@@ -340,6 +342,33 @@ export class PublicIntegrationsController {
             }
           : undefined,
       }));
+  }
+
+  @Get('/integrations/health')
+  @Header('Cache-Control', 'no-store')
+  async getIntegrationsHealth(
+    @GetOrgFromRequest() org: Organization,
+    @Headers('x-postiz-org') overrideOrgId?: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    if (overrideOrgId !== undefined) {
+      throw new HttpException({ msg: 'Unauthorized' }, 403);
+    }
+
+    const integrations =
+      await this._integrationService.getPublicIntegrationHealth(org.id);
+
+    return {
+      checkedAt: new Date().toISOString(),
+      integrations: integrations.map((integration) => ({
+        id: integration.id,
+        identifier: integration.providerIdentifier,
+        disabled: integration.disabled,
+        refreshNeeded: integration.refreshNeeded,
+        inBetweenSteps: integration.inBetweenSteps,
+        tokenExpiration: integration.tokenExpiration?.toISOString() ?? null,
+      })),
+    };
   }
 
   @Get('/social/:integration')

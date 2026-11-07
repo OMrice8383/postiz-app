@@ -72,6 +72,15 @@ export class PublicAuthMiddleware implements NestMiddleware {
       // @ts-ignore
       req.includeDeleted = includeDeleted;
 
+      if (
+        req.method === 'GET' &&
+        /^\/(?:api\/)?public\/v1\/integrations\/health\/?$/i.test(req.path) &&
+        req.headers['x-postiz-org'] !== undefined
+      ) {
+        res.status(HttpStatus.FORBIDDEN).json({ msg: 'Unauthorized' });
+        return;
+      }
+
       const overrideOrgId = (req.headers['x-postiz-org'] as string)?.trim();
 
       if (overrideOrgId) {

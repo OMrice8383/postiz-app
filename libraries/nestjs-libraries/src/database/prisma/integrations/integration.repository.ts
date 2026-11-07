@@ -629,6 +629,24 @@ export class IntegrationRepository {
     });
   }
 
+  getPublicIntegrationHealth(org: string) {
+    return this._integration.model.integration.findMany({
+      where: {
+        organizationId: org,
+        deletedAt: null,
+        type: 'social',
+      },
+      select: {
+        id: true,
+        providerIdentifier: true,
+        disabled: true,
+        refreshNeeded: true,
+        inBetweenSteps: true,
+        tokenExpiration: true,
+      },
+    });
+  }
+
   private async latestPostsFor(
     org: string,
     state: 'PUBLISHED' | 'ERROR',

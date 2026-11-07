@@ -154,6 +154,10 @@ export class IntegrationService {
     return this._integrationRepository.getIntegrationsList(org);
   }
 
+  getPublicIntegrationHealth(org: string) {
+    return this._integrationRepository.getPublicIntegrationHealth(org);
+  }
+
   getChannelHealth(org: string, includeDeleted = false) {
     return this._integrationRepository.getChannelHealth(org, includeDeleted);
   }
