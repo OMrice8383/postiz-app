@@ -4,6 +4,8 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
+  Headers,
   HttpException,
   Param,
   Post,
@@ -59,6 +61,7 @@ import { GetOrgActivityDto } from '@gitroom/nestjs-libraries/dtos/analytics/get.
 import { ResetCreditsDto } from '@gitroom/nestjs-libraries/dtos/billing/reset.credits.dto';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
 import dayjs from 'dayjs';
+import { getJarvisConnectReturnUrl } from '@gitroom/helpers/utils/jarvis.connect.return';
 
 @ApiTags('Public API')
 @Controller('/public/v1')
@@ -341,14 +344,51 @@ export class PublicIntegrationsController {
       }));
   }
 
+  @Get('/integrations/health')
+  @Header('Cache-Control', 'no-store')
+  async getIntegrationsHealth(
+    @GetOrgFromRequest() org: Organization,
+    @Headers('x-postiz-org') overrideOrgId?: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    if (overrideOrgId !== undefined) {
+      throw new HttpException({ msg: 'Unauthorized' }, 403);
+    }
+
+    const integrations =
+      await this._integrationService.getPublicIntegrationHealth(org.id);
+
+    return {
+      checkedAt: new Date().toISOString(),
+      integrations: integrations.map((integration) => ({
+        id: integration.id,
+        identifier: integration.providerIdentifier,
+        disabled: integration.disabled,
+        refreshNeeded: integration.refreshNeeded,
+        inBetweenSteps: integration.inBetweenSteps,
+        tokenExpiration: integration.tokenExpiration?.toISOString() ?? null,
+      })),
+    };
+  }
+
   @Get('/social/:integration')
   @CheckPolicies([AuthorizationActions.Create, Sections.CHANNEL])
   async getIntegrationUrl(
     @Param('integration') integration: string,
     @Query('refresh') refresh: string,
-    @GetOrgFromRequest() org: Organization
+    @GetOrgFromRequest() org: Organization,
+    @Query('returnTo') returnTo?: string
   ) {
     Sentry.metrics.count('public_api-request', 1);
+    if (returnTo !== undefined && returnTo !== 'jarvis') {
+      throw new BadRequestException('Unsupported return destination');
+    }
+    const returnURL = returnTo === 'jarvis'
+      ? getJarvisConnectReturnUrl(process.env.JARVIS_CONNECT_RETURN_URL)
+      : undefined;
+    if (returnTo === 'jarvis' && (!returnURL || !['instagram', 'tiktok'].includes(integration))) {
+      throw new BadRequestException('JARVIS return is not configured for this provider');
+    }
     if (
       !this._integrationManager
         .getAllowedSocialsIntegrations()
@@ -363,6 +403,10 @@ export class PublicIntegrationsController {
     const migrateTo = refresh
       ? this._integrationManager.getMigrationTarget(integration)
       : undefined;
+
+    if (returnURL && migrateTo && !['instagram', 'tiktok'].includes(migrateTo)) {
+      throw new BadRequestException('JARVIS return is not configured for this provider');
+    }
 
     const integrationProvider = this._integrationManager.getSocialIntegration(
       migrateTo || integration
@@ -387,6 +431,9 @@ export class PublicIntegrationsController {
 
       await ioRedis.set(`organization:${state}`, org.id, 'EX', 3600);
       await ioRedis.set(`login:${state}`, codeVerifier, 'EX', 3600);
+      if (returnURL) {
+        await ioRedis.set(`redirect:${state}`, returnURL, 'EX', 3600);
+      }
 
       return { url };
     } catch (err) {

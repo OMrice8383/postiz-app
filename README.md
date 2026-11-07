@@ -1,3 +1,5 @@
+> **DEEP OS向け改良版**：公式v2.25.3を土台に、JARVISへの固定復帰先と秘密なしの接続状態APIだけを追加しています。公開ソースはこのRepoです。[仕様・組み立て・切替と戻し方](docs/deep-os-fork.md)を参照してください。
+
 <p align="center">
   <a href="https://postiz.com/" target="_blank">
   <picture>

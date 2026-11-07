@@ -1,3 +1,5 @@
+DEEP OS向けforkの共通運用は [AGENTS.md](AGENTS.md) を参照する。以下の既存コード規約も維持する。
+
 This project is Postiz, a tool to schedule social media and chat posts to 28+ channels.
 You can add posts to the calendar, they will be added into a workflow and posted at the right time.
 You can find things like:
