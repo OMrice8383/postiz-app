@@ -29,27 +29,31 @@ export const ContinueIntegration: FC<{
   searchParams: any;
   logged: boolean;
   jarvisReturnUrl?: string;
+  callbackApiBase?: '/api';
 }> = (props) => {
-  const { provider, searchParams, logged, jarvisReturnUrl } = props;
+  const { provider, searchParams, logged, jarvisReturnUrl, callbackApiBase } = props;
   const { push } = useRouter();
   const t = useT();
   const layoutFetch = useFetch();
   const { extensionId, backendUrl, isSecured } = useVariables();
-  // Only JARVIS callbacks handle responses locally, without layout redirects/dialogs.
-  const fetch = useMemo(() => jarvisReturnUrl
-    ? customFetch({ baseUrl: backendUrl }, undefined, undefined, isSecured)
-    : layoutFetch, [jarvisReturnUrl, backendUrl, isSecured, layoutFetch]);
+  // Dedicated and JARVIS callbacks handle responses locally, without layout redirects/dialogs.
+  const fetch = useMemo(() => callbackApiBase || jarvisReturnUrl
+    ? customFetch({ baseUrl: callbackApiBase || backendUrl }, undefined, undefined, isSecured)
+    : layoutFetch, [callbackApiBase, jarvisReturnUrl, backendUrl, isSecured, layoutFetch]);
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [twoStepState, setTwoStepState] = useState<TwoStepState | null>(null);
   const [successState, setSuccessState] = useState<SuccessState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Helper to handle navigation - redirects if logged or returnURL exists, otherwise shows inline
+  // Dedicated callbacks stay inline unless the fixed JARVIS return matches.
   const navigateOrShow = useCallback(
     (path: string, returnURL: string | undefined, successMessage: string) => {
       if (jarvisReturnUrl && returnURL === jarvisReturnUrl) {
         window.location.assign(jarvisReturnUrl);
+      } else if (callbackApiBase) {
+        // The dedicated origin exposes only the callback, not normal application routes.
+        setSuccessState({ message: successMessage });
       } else if (returnURL) {
         // If returnURL exists, always redirect to it with the path params
         const params = path.includes('?') ? path.split('?')[1] : '';
@@ -62,7 +66,7 @@ export const ContinueIntegration: FC<{
         setSuccessState({ message: successMessage });
       }
     },
-    [logged, push, jarvisReturnUrl]
+    [logged, push, jarvisReturnUrl, callbackApiBase]
   );
   const modifiedParams = useMemo(() => {
     if (provider === 'mewe') {
@@ -140,7 +144,7 @@ export const ContinueIntegration: FC<{
         }
       }
 
-      if (jarvisReturnUrl && data.status !== HttpStatusCode.Ok && data.status !== HttpStatusCode.Created) {
+      if ((callbackApiBase || jarvisReturnUrl) && data.status !== HttpStatusCode.Ok && data.status !== HttpStatusCode.Created) {
         setError(true);
         return;
       }
@@ -240,7 +244,7 @@ export const ContinueIntegration: FC<{
 
       try {
         // Use public or authenticated endpoint based on the flow
-        const endpoint = logged
+        const endpoint = logged && !callbackApiBase
           ? `/integrations/provider/${twoStepState.integrationId}/connect`
           : `/integrations/public/provider/${twoStepState.integrationId}/connect`;
 
@@ -274,7 +278,7 @@ export const ContinueIntegration: FC<{
         setIsSaving(false);
       }
     },
-    [twoStepState, fetch, modifiedParams, provider, navigateOrShow]
+    [twoStepState, fetch, modifiedParams, provider, navigateOrShow, logged, callbackApiBase]
   );
 
   const Provider = useMemo(() => {
@@ -297,7 +301,7 @@ export const ContinueIntegration: FC<{
     return names[provider] || provider;
   }, [provider]);
 
-  // Success state for non-logged users without returnURL
+  // Inline success for dedicated callbacks and ordinary non-logged users.
   if (successState) {
     return (
       <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
@@ -439,7 +443,7 @@ export const ContinueIntegration: FC<{
             <Button className="mx-auto mt-[24px]" onClick={() => window.location.assign(jarvisReturnUrl)}>
               JARVISへ戻って確認
             </Button>
-          ) : logged && <Redirect url="/launches" delay={3000} />}
+          ) : logged && !callbackApiBase && <Redirect url="/launches" delay={3000} />}
         </div>
       </div>
     );
