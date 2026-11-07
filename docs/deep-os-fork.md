@@ -91,6 +91,14 @@ docker image inspect "$IMAGE" --format '{{.Id}}'
 
 **ここからは未実行の運用手順です。** この文書を作ったことは、切替の承認や実施を意味しません。了承、正式なJARVIS URL、切替imageのID、JARVISの戻り画面と読取処理、公開ソースのリンク表示を確認してから進めます。
 
+### 切替を止める条件：callbackのログ対策
+
+**callbackのqueryをアクセスログへ残さない実設定は、まだ確認できていません。** 元の `var/docker/nginx.conf` は標準のアクセスログを有効にしており、callbackを除外していません。新しい画面のReferrer-Policyだけで、このログ対策も済んだとは扱いません。
+
+切替担当は候補imageと採用するnginx設定を `nginx -T` などで点検し、`/integrations/social/{provider}` のcode・state・error等のqueryを保存しない非秘密設定を先に用意します。Cloudflare・アプリ側のquery記録や外部解析も対象にします。架空のcallback要求を使い、ログへqueryが残らないこと、応答のno-referrer/no-store、既存のAccess保護が保たれることを確認し、切替担当Issueへ結果を記録してください。ログへ出す確認値も架空のものだけにします。
+
+**この確認が通らなければ切り替えません。** 必要なログ設定の変更・稼働版への反映は、今回実行していない切替Taskで扱います。本物のSNS接続で代わりに確かめることはしません。
+
 読取で確認した現在の配置：
 
 - 機械・ディレクトリ：deep-dev2、`~/sns-postiz`。
