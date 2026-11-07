@@ -46,11 +46,14 @@ export const ContinueIntegration: FC<{
   const [successState, setSuccessState] = useState<SuccessState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Helper to handle navigation - redirects if logged or returnURL exists, otherwise shows inline
+  // Dedicated callbacks stay inline unless the fixed JARVIS return matches.
   const navigateOrShow = useCallback(
     (path: string, returnURL: string | undefined, successMessage: string) => {
       if (jarvisReturnUrl && returnURL === jarvisReturnUrl) {
         window.location.assign(jarvisReturnUrl);
+      } else if (callbackApiBase) {
+        // The dedicated origin exposes only the callback, not normal application routes.
+        setSuccessState({ message: successMessage });
       } else if (returnURL) {
         // If returnURL exists, always redirect to it with the path params
         const params = path.includes('?') ? path.split('?')[1] : '';
@@ -63,7 +66,7 @@ export const ContinueIntegration: FC<{
         setSuccessState({ message: successMessage });
       }
     },
-    [logged, push, jarvisReturnUrl]
+    [logged, push, jarvisReturnUrl, callbackApiBase]
   );
   const modifiedParams = useMemo(() => {
     if (provider === 'mewe') {
@@ -141,7 +144,7 @@ export const ContinueIntegration: FC<{
         }
       }
 
-      if (jarvisReturnUrl && data.status !== HttpStatusCode.Ok && data.status !== HttpStatusCode.Created) {
+      if ((callbackApiBase || jarvisReturnUrl) && data.status !== HttpStatusCode.Ok && data.status !== HttpStatusCode.Created) {
         setError(true);
         return;
       }
@@ -298,7 +301,7 @@ export const ContinueIntegration: FC<{
     return names[provider] || provider;
   }, [provider]);
 
-  // Success state for non-logged users without returnURL
+  // Inline success for dedicated callbacks and ordinary non-logged users.
   if (successState) {
     return (
       <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
@@ -440,7 +443,7 @@ export const ContinueIntegration: FC<{
             <Button className="mx-auto mt-[24px]" onClick={() => window.location.assign(jarvisReturnUrl)}>
               JARVISへ戻って確認
             </Button>
-          ) : logged && <Redirect url="/launches" delay={3000} />}
+          ) : logged && !callbackApiBase && <Redirect url="/launches" delay={3000} />}
         </div>
       </div>
     );

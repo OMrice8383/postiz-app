@@ -102,12 +102,8 @@ it('keeps authenticated page saving on the existing origin without the dedicated
 it.each([401, 406])('handles dedicated exchange HTTP %s locally even without a JARVIS return setting', async (status) => {
   mockFetch.mockResolvedValue(response({ msg: 'fixture-declined' }, status));
   connect({ logged: true, jarvisReturnUrl: undefined, callbackApiBase: '/api' });
-  if (status === 406) {
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/launches?msg=fixture-declined'));
-  } else {
-    await screen.findAllByText('Could not add provider');
-    expect(mockPush).not.toHaveBeenCalled();
-  }
+  await screen.findAllByText('Could not add provider');
+  expect(mockPush).not.toHaveBeenCalled();
   expect(window.location.href).toBe(callbackHref);
   expect(mockFetch.mock.calls.map(([url]) => url)).toEqual(['/api/integrations/social-connect/instagram']);
 });
