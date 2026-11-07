@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Redirect } from '@gitroom/frontend/components/layout/redirect';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import { customFetch } from '@gitroom/helpers/utils/custom.fetch.func';
 import { continueProviderList } from '@gitroom/frontend/components/new-launch/providers/continue-provider/list';
 import { IntegrationContext } from '@gitroom/frontend/components/launches/helpers/use.integration';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
@@ -32,8 +33,12 @@ export const ContinueIntegration: FC<{
   const { provider, searchParams, logged, jarvisReturnUrl } = props;
   const { push } = useRouter();
   const t = useT();
-  const fetch = useFetch();
-  const { extensionId, backendUrl } = useVariables();
+  const layoutFetch = useFetch();
+  const { extensionId, backendUrl, isSecured } = useVariables();
+  // Only JARVIS callbacks handle responses locally, without layout redirects/dialogs.
+  const fetch = useMemo(() => jarvisReturnUrl
+    ? customFetch({ baseUrl: backendUrl }, undefined, undefined, isSecured)
+    : layoutFetch, [jarvisReturnUrl, backendUrl, isSecured, layoutFetch]);
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [twoStepState, setTwoStepState] = useState<TwoStepState | null>(null);
@@ -384,6 +389,11 @@ export const ContinueIntegration: FC<{
                 isSaving={isSaving}
               />
             </IntegrationContext.Provider>
+            {jarvisReturnUrl && (
+              <Button secondary disabled={isSaving} onClick={() => window.location.assign(jarvisReturnUrl)}>
+                JARVISへ戻って確認
+              </Button>
+            )}
           </div>
         </div>
       </div>

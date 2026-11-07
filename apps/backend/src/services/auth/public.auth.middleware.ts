@@ -73,7 +73,7 @@ export class PublicAuthMiddleware implements NestMiddleware {
       req.includeDeleted = includeDeleted;
 
       if (
-        req.method === 'GET' &&
+        (req.method === 'GET' || req.method === 'HEAD') &&
         /^\/(?:api\/)?public\/v1\/integrations\/health\/?$/i.test(req.path) &&
         req.headers['x-postiz-org'] !== undefined
       ) {

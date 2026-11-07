@@ -191,6 +191,15 @@ describe('existing public authentication and health override boundary', () => {
     expect(x.organizations.getOrgByIdWithSubscription).not.toHaveBeenCalled();
     expect(x.next).not.toHaveBeenCalled();
   });
+  it.each(['', 'fixture-store-b'])('rejects HEAD override before looking up another organization (%s)', async (override) => {
+    const x = make('fixture-store-a', override);
+    x.req.method = 'HEAD';
+    await x.middleware.use(x.req, x.res, x.next);
+    expect(x.res.status).toHaveBeenCalledWith(403);
+    expect(x.organizations.canUseSuperAdminApi).not.toHaveBeenCalled();
+    expect(x.organizations.getOrgByIdWithSubscription).not.toHaveBeenCalled();
+    expect(x.next).not.toHaveBeenCalled();
+  });
   it('leaves the existing super-admin override on other routes unchanged', async () => {
     const x = make('fixture-store-a', 'fixture-store-b', '/api/public/v1/integrations');
     await x.middleware.use(x.req, x.res, x.next);

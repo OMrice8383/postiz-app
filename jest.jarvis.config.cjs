@@ -8,8 +8,7 @@ module.exports = {
   moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths, { prefix: '<rootDir>/' }),
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      isolatedModules: true,
-      tsconfig: { ...compilerOptions, module: 'commonjs', jsx: 'react-jsx' },
+      tsconfig: { ...compilerOptions, isolatedModules: true, module: 'commonjs', jsx: 'react-jsx' },
     }],
   },
   clearMocks: true,
