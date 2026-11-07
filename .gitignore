@@ -5,6 +5,10 @@ dist
 tmp
 /out-tsc
 .env
+.env.*
+!.env.example
+.pnpm-store/
+node-compile-cache/
 .apple
 # dependencies
 node_modules
