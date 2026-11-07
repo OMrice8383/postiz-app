@@ -29,16 +29,17 @@ export const ContinueIntegration: FC<{
   searchParams: any;
   logged: boolean;
   jarvisReturnUrl?: string;
+  callbackApiBase?: '/api';
 }> = (props) => {
-  const { provider, searchParams, logged, jarvisReturnUrl } = props;
+  const { provider, searchParams, logged, jarvisReturnUrl, callbackApiBase } = props;
   const { push } = useRouter();
   const t = useT();
   const layoutFetch = useFetch();
   const { extensionId, backendUrl, isSecured } = useVariables();
-  // Only JARVIS callbacks handle responses locally, without layout redirects/dialogs.
-  const fetch = useMemo(() => jarvisReturnUrl
-    ? customFetch({ baseUrl: backendUrl }, undefined, undefined, isSecured)
-    : layoutFetch, [jarvisReturnUrl, backendUrl, isSecured, layoutFetch]);
+  // Dedicated and JARVIS callbacks handle responses locally, without layout redirects/dialogs.
+  const fetch = useMemo(() => callbackApiBase || jarvisReturnUrl
+    ? customFetch({ baseUrl: callbackApiBase || backendUrl }, undefined, undefined, isSecured)
+    : layoutFetch, [callbackApiBase, jarvisReturnUrl, backendUrl, isSecured, layoutFetch]);
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [twoStepState, setTwoStepState] = useState<TwoStepState | null>(null);
@@ -240,7 +241,7 @@ export const ContinueIntegration: FC<{
 
       try {
         // Use public or authenticated endpoint based on the flow
-        const endpoint = logged
+        const endpoint = logged && !callbackApiBase
           ? `/integrations/provider/${twoStepState.integrationId}/connect`
           : `/integrations/public/provider/${twoStepState.integrationId}/connect`;
 
@@ -274,7 +275,7 @@ export const ContinueIntegration: FC<{
         setIsSaving(false);
       }
     },
-    [twoStepState, fetch, modifiedParams, provider, navigateOrShow]
+    [twoStepState, fetch, modifiedParams, provider, navigateOrShow, logged, callbackApiBase]
   );
 
   const Provider = useMemo(() => {

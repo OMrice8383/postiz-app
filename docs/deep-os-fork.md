@@ -37,7 +37,23 @@ backendとfrontendの**サーバープロセスへ同じ値**を渡します。�
 - Instagramの選択中の状態は従来と同じ画面内のメモリです。タブを閉じた場合や再読込後の自動復帰は保証しません。元のJARVISタブの再確認導線を残してください。
 - callback応答は `Referrer-Policy: no-referrer` と `Cache-Control: no-store`。既存のAccess保護は維持します。nginxの記録の扱いは、下記の2026-11-07の決定に従います。
 
-SNSに登録した `redirect_uri`、OAuth stateの生成・照合、コードとトークンの交換、Instagramの選択API、トークン保存は変更していません。`FRONTEND_URL`・`MAIN_URL`・`NEXT_PUBLIC_BACKEND_URL` をJARVISへ差し替えないでください。
+OAuth stateの生成・照合・有効期限、Instagramの選択API、トークン保存は変更していません。`redirect_uri` の任意設定は次節だけです。`FRONTEND_URL`・`MAIN_URL`・`NEXT_PUBLIC_BACKEND_URL` をJARVISや専用callbackの名前へ差し替えないでください。
+
+### Instagramだけの専用callback（#638、未配備）
+
+[基盤 #638の限定案](https://github.com/OMrice8383/deep-os-jarvis/issues/638)に従い、Instagramの戻り先だけを分ける任意設定を追加しました。他のSNS・通常画面・全体のAPI宛先は変えません。**T04の確認とT09の独立した安全レビューが両方済むまで、この変更を配備してはいけません。** この節はDNS・tunnel・稼働設定の変更指示ではありません。
+
+```dotenv
+# 架空の例。運用者が承認した完成形のURLを、backend/frontend両サーバーへ同じ値で渡す。
+INSTAGRAM_CALLBACK_URL="https://callback.example/integrations/social/instagram"
+```
+
+- HTTPSの完成形だけを受け付け、道は正確な `/integrations/social/instagram` に固定します。HTTP、ユーザー情報、query、fragment、末尾の `/`、余分な道、正規化が必要な表記は拒否します。不正設定は値を表示せずエラーにし、旧URLへ黙って戻しません。Hostヘッダーは使いません。
+- 専用設定があると、Instagramの認可URLとコード交換は同じ検証済みURLを使います。交換時に `refresh` のqueryを追加しません。未設定・空なら、末尾の `/` や交換時の `refresh` を含め、従来の `FRONTEND_URL` からの文字列連結をそのまま使います。
+- Instagramのcallback画面だけ、同一originの `/api` へ局所的なfetchで送ります。全体layoutの応答処理（ログイン画面への移動など）は通しません。既存のJARVIS用fetchと通常fetchは維持します。新しい `NEXT_PUBLIC_*` 設定はありません。
+- 必要なAPIは `POST /api/integrations/social-connect/instagram` と `POST /api/integrations/public/provider/:id/connect` の2つだけです。共有cookieがあってログイン済みでも、専用modeの保存は後者を使います。初回応答のページ一覧を継続UIへ渡すため、追加のpages取得APIや認証付き保存APIは必要ありません。全体layoutにも、この接続のための追加bootstrap APIはありません。
+- 運用側で新名に許可するのは、Instagram callback、必要な `/_next/static/…`、上記2 APIだけです。API全体・認証付き `/api/integrations/provider/:id/connect` は公開しません。許可外は404とし、旧名のAccess保護は維持します。DNS・tunnelの設定と攻撃的な道の検査は基盤担当の別作業です。
+- 未登録・期限切れのstate拒否、stateの生成・照合・有効期限、token保存、既存の固定JARVIS復帰先は変えません。本番SNS DB、実アカウント、実OAuth、投稿を使った確認は、この単体試験やPR作成には含めません。
 
 ### 2. 接続状態だけを読む窓口
 
