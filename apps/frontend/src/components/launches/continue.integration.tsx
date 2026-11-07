@@ -10,6 +10,7 @@ import { continueProviderList } from '@gitroom/frontend/components/new-launch/pr
 import { IntegrationContext } from '@gitroom/frontend/components/launches/helpers/use.integration';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
+import { Button } from '@gitroom/react/form/button';
 
 interface TwoStepState {
   integrationId: string;
@@ -26,8 +27,9 @@ export const ContinueIntegration: FC<{
   provider: string;
   searchParams: any;
   logged: boolean;
+  jarvisReturnUrl?: string;
 }> = (props) => {
-  const { provider, searchParams, logged } = props;
+  const { provider, searchParams, logged, jarvisReturnUrl } = props;
   const { push } = useRouter();
   const t = useT();
   const fetch = useFetch();
@@ -41,7 +43,9 @@ export const ContinueIntegration: FC<{
   // Helper to handle navigation - redirects if logged or returnURL exists, otherwise shows inline
   const navigateOrShow = useCallback(
     (path: string, returnURL: string | undefined, successMessage: string) => {
-      if (returnURL) {
+      if (jarvisReturnUrl && returnURL === jarvisReturnUrl) {
+        window.location.assign(jarvisReturnUrl);
+      } else if (returnURL) {
         // If returnURL exists, always redirect to it with the path params
         const params = path.includes('?') ? path.split('?')[1] : '';
         push(params ? `${returnURL}?${params}` : returnURL);
@@ -53,7 +57,7 @@ export const ContinueIntegration: FC<{
         setSuccessState({ message: successMessage });
       }
     },
-    [logged, push]
+    [logged, push, jarvisReturnUrl]
   );
   const modifiedParams = useMemo(() => {
     if (provider === 'mewe') {
@@ -104,6 +108,10 @@ export const ContinueIntegration: FC<{
 
   useEffect(() => {
     (async () => {
+      if (jarvisReturnUrl && searchParams.error && !modifiedParams.code) {
+        setError(true);
+        return;
+      }
       const timezone = String(newDayjs().utcOffset());
 
       // Try public endpoint first (handles both public and fallback scenarios)
@@ -125,6 +133,11 @@ export const ContinueIntegration: FC<{
             body: JSON.stringify({ ...modifiedParams, timezone }),
           });
         }
+      }
+
+      if (jarvisReturnUrl && data.status !== HttpStatusCode.Ok && data.status !== HttpStatusCode.Created) {
+        setError(true);
+        return;
       }
 
       if (data.status === HttpStatusCode.PreconditionFailed) {
@@ -194,7 +207,7 @@ export const ContinueIntegration: FC<{
       }
 
       // If it's a two-step provider, show the selection UI inline
-      if (inBetweenSteps && !searchParams.refresh) {
+      if (inBetweenSteps && (!searchParams.refresh || (jarvisReturnUrl && returnURL === jarvisReturnUrl))) {
         setTwoStepState({
           integrationId: id,
           onboarding,
@@ -211,7 +224,7 @@ export const ContinueIntegration: FC<{
         returnURL,
         'Channel Updated'
       );
-    })();
+    })().catch(() => setError(true));
   }, []);
 
   const onSave = useCallback(
@@ -250,6 +263,8 @@ export const ContinueIntegration: FC<{
           twoStepState.returnURL,
           'Channel Added'
         );
+      } catch {
+        setError(true);
       } finally {
         setIsSaving(false);
       }
@@ -317,7 +332,7 @@ export const ContinueIntegration: FC<{
   }
 
   // Show the two-step selection UI
-  if (twoStepState && Provider) {
+  if (twoStepState && Provider && !error) {
     return (
       <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
         {/* Background gradient decoration */}
@@ -402,13 +417,19 @@ export const ContinueIntegration: FC<{
             {t('could_not_add_provider', 'Could not add provider')}
           </div>
           <div className="text-[16px] text-gray-400 max-w-[400px]">
-            {errorMessage ||
-              t(
-                'you_are_being_redirected_back',
-                'An error occurred. Please try again.'
-              )}
+            {jarvisReturnUrl
+              ? '接続を確認できませんでした。JARVISに戻って状態を確認してください。'
+              : errorMessage ||
+                t(
+                  'you_are_being_redirected_back',
+                  'An error occurred. Please try again.'
+                )}
           </div>
-          {logged && <Redirect url="/launches" delay={3000} />}
+          {jarvisReturnUrl ? (
+            <Button className="mx-auto mt-[24px]" onClick={() => window.location.assign(jarvisReturnUrl)}>
+              JARVISへ戻って確認
+            </Button>
+          ) : logged && <Redirect url="/launches" delay={3000} />}
         </div>
       </div>
     );

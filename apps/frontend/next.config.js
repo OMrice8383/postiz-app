@@ -10,6 +10,13 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/integrations/social/:provider',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
+      {
         source: '/:path*',
         headers: [
           {
