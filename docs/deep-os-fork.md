@@ -74,6 +74,17 @@ pnpm run test:jarvis
 
 自前imageは元の `Dockerfile.dev` でfrontend/backend/orchestratorをまとめて組み立てます。**imageを起動する必要はありません**。Actionsには頼らず、サーバーで試験・buildします。forkのActionsは無効です。
 
+初回だけ、他担当と分けたbuilderを作ります。作成済みならcreateは省略します。
+
+```bash
+docker buildx create --name postiz-462 --driver docker-container \
+  --driver-opt cpu-period=100000 --driver-opt cpu-quota=200000 \
+  --driver-opt memory=8g --driver-opt memory-swap=8g
+docker buildx inspect postiz-462 --bootstrap
+docker update --cpuset-cpus "$(python3 -c 'import os; print(",".join(map(str, sorted(os.sched_getaffinity(0))[:2])))')" \
+  buildx_buildkit_postiz-4620
+```
+
 ```bash
 SOURCE_SHA=$(git rev-parse HEAD)
 IMAGE="postiz-fork:462-${SOURCE_SHA:0:8}"
@@ -179,7 +190,9 @@ docker compose -p sns-t02-postiz -f compose.yaml -f compose.override.yaml \
 
 ## 公式版への追従
 
-担当は基盤（arch-chief）です。**セキュリティ修正が出た時はその都度、通常の見直しは月1回**行います。Dependabotの週次確認も補助に使いますが、セキュリティ告知の確認や上流の版更新の代わりにはしません。
+担当は基盤（arch-chief）です。**セキュリティ修正が出た時はその都度、通常の見直しは月1回**行います。Dependabotの週次確認も補助に使いますが、セキュリティ告知の確認や上流の版更新の代わりにはしません。自動統合はせず、サーバーで確認します。
+
+初回のGitHub検査では、元の依存に安全性の警告が残りました。criticalの2通知は同じ `@sentry/nextjs` の [CVE-2026-114139](https://github.com/advisories/GHSA-mchm-gjx6-7h55) をmanifestとlockfileで数えたものです。修正版は10.75.2です。公式の告知では `tunnelRoute` 使用などが成立条件で、今回の設定にはその指定がありません。全警告の影響判定や依存更新を済ませたとは扱いません。指定された土台を無断で更新せず、基盤PMが切替前に警告を分類し、修正の要否と採用版を切替担当Issueへ記録します。
 
 1. 公式のRelease・Security Advisory・更新履歴を確認し、採用する公式tag/commitと理由を基盤Issueへ記録します。指定版より先の公式 `main` を自動で混ぜません。
 2. 新しい保守ブランチを作り、公式の更新とこの2機能の差分を取り込みます。OAuth・state・ページ選択・Public認証の変更箇所を読み直します。競合を機械的に片方へ寄せません。
