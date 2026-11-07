@@ -1,12 +1,18 @@
 # DEEP OS向けPostiz改良版
 
-JARVISでSNS接続を始め、Postizでの操作後にJARVISへ戻るための改良版です。接続状態だけを、秘密の値を取り出さずに確認する窓口も追加しました。稼働版の切替や本物のSNS操作は、この実装作業では行いません。
+JARVISでSNS接続を始め、Postizでの操作後にJARVISへ戻るための改良版です。接続状態だけを、秘密の値を取り出さずに確認する窓口も追加しました。稼働版の切替は別の明示指示で行い、本物のSNS操作は別の了承があるまで行いません。
 
 - 公開ソース：**https://github.com/OMrice8383/postiz-app**
 - 持ち主・保守担当：基盤（arch-chief）。基盤Repoと同じ `OMrice8383` 名義。GitHub上の種別はUserです。
 - 土台：公式 `gitroomhq/postiz-app` の `v2.25.3`、commit `a5affe62c74e39c1e7ac960d50d8418b807d532c`。
 - 改良版の既定ブランチ：`deep-os/v2.25.3`。公式の `main` はそのまま残します。履歴の強制上書きはしません。
 - 依頼・結果：[deep-os-platform #462](https://github.com/OMrice8383/deep-os-platform/issues/462)。設計：[JARVISの提案書](https://github.com/OMrice8383/deep-os-jarvis/blob/main/docs/qa/SNS_G16_T06_POSTIZ_API_ADDITION_PROPOSAL_2026-11-07.md)。
+
+## 稼働記録：2026-11-07
+
+長倉さんの判断と実施指示を受け、deep-dev2のPostiz本体だけを18:00:00〜18:00:24 JSTに切り替えました。稼働imageは `postiz-fork:462-2b255fdb`、製品コードは承認済みの固定版と同じです。直前の控えを取得・検査し、切替後の一覧とhealth、認証拒否、callbackヘッダー、正式戻り先設定を確認しました。DB構造の差分は0、他コンテナと既存volumeは不変です。
+
+元imageと戻し設定は確認済みですが、正常終了したため実際の切戻しは行っていません。本物SNSの接続・投稿も未実施です。[完了根拠](https://github.com/OMrice8383/deep-os-platform/issues/462#issuecomment-6704836665)を参照してください。以後の再作成も `compose.fork.yaml` を含め、baseだけの `up` で意図せず公式版へ戻さないようにします。
 
 ## 追加したものは2つ
 
@@ -17,8 +23,8 @@ JARVISでSNS接続を始め、Postizでの操作後にJARVISへ戻るための�
 設定できるのは、運用者が承認したHTTPSのoriginに、正確な `/settings/sns-accounts/return` を付けたURLだけです。ユーザー名・パスワード・query・fragment・非正規化のURLは拒否します。originは設定値そのものが唯一の基準です。Hostヘッダーやリクエストから作ったり、任意のドメイン一覧を増やしたりしません。
 
 ```dotenv
-# 空の例。正式なoriginはPMが確定するまで入れない。
-JARVIS_CONNECT_RETURN_URL=""
+# 2026-11-07承認の正式値。開発での確認も同じ値を使う。
+JARVIS_CONNECT_RETURN_URL="https://table.avante-works.com/settings/sns-accounts/return"
 ```
 
 backendとfrontendの**サーバープロセスへ同じ値**を渡します。新しい `NEXT_PUBLIC_*` はありません。callbackの動的なサーバーページが検証済みの公開URLだけを画面へ渡すため、URLの変更だけなら再ビルドは不要です。既存の `.env`・composeによる秘密管理は変えません。
@@ -29,7 +35,7 @@ backendとfrontendの**サーバープロセスへ同じ値**を渡します。�
 - 拒否・失敗・通信エラー・期限切れでは、安全な定型文と「JARVISへ戻って確認」を出します。JARVISへSNSのエラー原文は転送しません。
 - 失敗時の戻るボタンは、この設定を持つ配置のcallback画面で表示します。stateやログインの証明ではありません。JARVIS側で本人・店・権限・契約・試行を再検査し、状態を読み直してください。
 - Instagramの選択中の状態は従来と同じ画面内のメモリです。タブを閉じた場合や再読込後の自動復帰は保証しません。元のJARVISタブの再確認導線を残してください。
-- callback応答は `Referrer-Policy: no-referrer` と `Cache-Control: no-store`。既存のAccess保護は維持し、callbackのqueryをログや外部解析へ送らない運用も続けます。
+- callback応答は `Referrer-Policy: no-referrer` と `Cache-Control: no-store`。既存のAccess保護は維持します。nginxの記録の扱いは、下記の2026-11-07の決定に従います。
 
 SNSに登録した `redirect_uri`、OAuth stateの生成・照合、コードとトークンの交換、Instagramの選択API、トークン保存は変更していません。`FRONTEND_URL`・`MAIN_URL`・`NEXT_PUBLIC_BACKEND_URL` をJARVISへ差し替えないでください。
 
@@ -110,7 +116,7 @@ docker image inspect "$IMAGE" --format '{{.Id}}'
 
 応答のno-referrer/no-storeや既存のAccess保護は維持します。この判断は、秘密をGit・Issue・Discordへ転載する許可や、本物のSNSへ接続・投稿する許可ではありません。
 
-読取で確認した現在の配置：
+切替前に確認した配置（2026-11-07）：
 
 - 機械・ディレクトリ：deep-dev2、`~/sns-postiz`。
 - composeのproject名：**`sns-t02-postiz`**。ディレクトリ名から別projectを作らないこと。
