@@ -100,15 +100,15 @@ docker image inspect "$IMAGE" --format '{{.Id}}'
 
 ## 切替手順：了承後の別指示でだけ実行
 
-**ここからは未実行の運用手順です。** この文書を作ったことは、切替の承認や実施を意味しません。了承、正式なJARVIS URL、切替imageのID、JARVISの戻り画面と読取処理、公開ソースのリンク表示を確認してから進めます。
+**以下は実施指示を受けて使う運用手順です。** 文書があることだけを切替承認とは扱いません。2026-11-07の切替は長倉さんの判断を受け、18:00〜18:30に行う指示です。切替imageのID、控えと戻し方を先に確認します。JARVIS側の受け口と公開ソースリンクの作成状況は同担当へ引き継ぎ、本物のSNS接続・投稿の受入は別の指示で行います。
 
-### 切替を止める条件：callbackのログ対策
+### 切替前の確認とnginxの記録の扱い
 
-**callbackのqueryをアクセスログへ残さない実設定は、まだ確認できていません。** 元の `var/docker/nginx.conf` は標準のアクセスログを有効にしており、callbackを除外していません。新しい画面のReferrer-Policyだけで、このログ対策も済んだとは扱いません。
+2026-11-07 17:20の長倉さん決定により、残っていた2条件も解消済みです。**正式な戻り先は `https://table.avante-works.com/settings/sns-accounts/return` に固定**し、開発での確認も同じ値を使います。JARVIS側の受け口はT05が作成中です。**元ソフトの安全性警告は、今回の固定版 `deep-os-v2.25.3-platform-462` のまま採用してよい**との判断です。根拠は [platform #462の受領記録](https://github.com/OMrice8383/deep-os-platform/issues/462#issuecomment-6704412151) に残しています。
 
-切替担当は候補imageと採用するnginx設定を `nginx -T` などで点検し、`/integrations/social/{provider}` のcode・state・error等のqueryを保存しない非秘密設定を先に用意します。Cloudflare・アプリ側のquery記録や外部解析も対象にします。架空のcallback要求を使い、ログへqueryが残らないこと、応答のno-referrer/no-store、既存のAccess保護が保たれることを確認し、切替担当Issueへ結果を記録してください。ログへ出す確認値も架空のものだけにします。
+2026-11-07の長倉さんの判断により、SNSから戻るときのアドレスの中身がnginxの記録に残る件は、切替を止める理由にしません。記録を除外したことの確認を切替条件から外します。根拠は [platform #462の決定記録](https://github.com/OMrice8383/deep-os-platform/issues/462#issuecomment-6704305884) です。元のnginx設定は変更しません。
 
-**この確認が通らなければ切り替えません。** 必要なログ設定の変更・稼働版への反映は、今回実行していない切替Taskで扱います。本物のSNS接続で代わりに確かめることはしません。
+応答のno-referrer/no-storeや既存のAccess保護は維持します。この判断は、秘密をGit・Issue・Discordへ転載する許可や、本物のSNSへ接続・投稿する許可ではありません。
 
 読取で確認した現在の配置：
 
@@ -192,7 +192,7 @@ docker compose -p sns-t02-postiz -f compose.yaml -f compose.override.yaml \
 
 担当は基盤（arch-chief）です。**セキュリティ修正が出た時はその都度、通常の見直しは月1回**行います。Dependabotの週次確認も補助に使いますが、セキュリティ告知の確認や上流の版更新の代わりにはしません。自動統合はせず、サーバーで確認します。
 
-初回のGitHub検査では、元の依存に安全性の警告が残りました。criticalの2通知は同じ `@sentry/nextjs` の [CVE-2026-114139](https://github.com/advisories/GHSA-mchm-gjx6-7h55) をmanifestとlockfileで数えたものです。修正版は10.75.2です。公式の告知では `tunnelRoute` 使用などが成立条件で、今回の設定にはその指定がありません。全警告の影響判定や依存更新を済ませたとは扱いません。指定された土台を無断で更新せず、基盤PMが切替前に警告を分類し、修正の要否と採用版を切替担当Issueへ記録します。
+初回のGitHub検査では、元の依存に安全性の警告が残りました。criticalの2通知は同じ `@sentry/nextjs` の [CVE-2026-114139](https://github.com/advisories/GHSA-mchm-gjx6-7h55) をmanifestとlockfileで数えたものです。修正版は10.75.2です。公式の告知では `tunnelRoute` 使用などが成立条件で、今回の設定にはその指定がありません。全警告の影響判定や依存更新を済ませたとは扱いません。2026-11-07 17:20に長倉さんが、公式版と同じ上流へ2機能を加えた今回の固定版のまま採用してよいと判断しました。今回は依存を無断で更新せず、この判断で切り替えます。今後もセキュリティ修正時と月1回の確認を続け、次の採用版の根拠を担当Issueへ記録します。
 
 1. 公式のRelease・Security Advisory・更新履歴を確認し、採用する公式tag/commitと理由を基盤Issueへ記録します。指定版より先の公式 `main` を自動で混ぜません。
 2. 新しい保守ブランチを作り、公式の更新とこの2機能の差分を取り込みます。OAuth・state・ページ選択・Public認証の変更箇所を読み直します。競合を機械的に片方へ寄せません。
