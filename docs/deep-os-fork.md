@@ -31,6 +31,7 @@ backendとfrontendの**サーバープロセスへ同じ値**を渡します。�
 
 - 未指定の `returnTo` は従来どおり。不明値、不正・未設定のURL、対象外のproviderは認可URLを発行する前に400で拒否します。
 - JARVIS向けは `instagram` と `tiktok` のみ。TikTokの実際の有効化は別Taskです。既存のprovider許可設定も引き続き適用します。
+- JARVISのInstagram再認証では、`refresh` に確認済みのPostiz行IDを受け取り、認証したOrganizationの同じ行を読んでInstagram側の `internalId` に変換します（[JARVIS #687](https://github.com/OMrice8383/deep-os-jarvis/issues/687)、課長の案1）。行なし・他組織・他provider・削除済み・不正なIDは、OAuth URL生成やRedis保存より前に拒否します。`internalId` は公開APIへ返しません。JARVIS以外の既存の `refresh` は変換せず、初回接続も従来どおりです。
 - 保存とInstagramのページ選択が成功してから、固定URLへ通常の外部遷移をします。`msg`・`added`・code・stateなどのqueryは付けません。
 - 拒否・失敗・通信エラー・期限切れでは、安全な定型文と「JARVISへ戻って確認」を出します。JARVISへSNSのエラー原文は転送しません。
 - 失敗時の戻るボタンは、この設定を持つ配置のcallback画面で表示します。stateやログインの証明ではありません。JARVIS側で本人・店・権限・契約・試行を再検査し、状態を読み直してください。
