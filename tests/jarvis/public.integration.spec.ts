@@ -75,8 +75,73 @@ describe('public connect start', () => {
       ['redirect:fixture-state', fixed, 'EX', 3600],
     ]);
   });
+  it('resolves only the same organization Instagram row to internalId before storing refresh', async () => {
+    const internalId = '123456789012345'; // Synthetic fixture, never a real account ID.
+    integrationService.getIntegrationById = jest.fn().mockResolvedValue({
+      id: 'fixture-row', organizationId: org.id, providerIdentifier: 'instagram', type: 'social', deletedAt: null, internalId,
+    });
+    await controller.getIntegrationUrl('instagram', 'fixture-row', org, 'jarvis');
+    expect(integrationService.getIntegrationById).toHaveBeenCalledTimes(1);
+    expect(integrationService.getIntegrationById).toHaveBeenCalledWith(org.id, 'fixture-row');
+    expect(redis.set.mock.calls).toEqual([
+      ['refresh:fixture-state', internalId, 'EX', 3600],
+      ['organization:fixture-state', org.id, 'EX', 3600],
+      ['login:fixture-state', 'fixture-verifier', 'EX', 3600],
+      ['redirect:fixture-state', fixed, 'EX', 3600],
+    ]);
+  });
+  it.each([
+    null,
+    { organizationId: 'fixture-other-store' },
+    { id: 'fixture-other-row' },
+    { providerIdentifier: 'tiktok' },
+    { type: 'article' },
+    { deletedAt: new Date('2026-01-01T00:00:00Z') },
+    ...[undefined, null, '', 'nograph__fixture', '12 34', 12345].map(internalId => ({ internalId })),
+  ])('rejects missing, foreign, mismatched or invalid refresh rows before provider I/O (case %#)', async (change) => {
+    integrationService.getIntegrationById = jest.fn().mockResolvedValue(change === null ? null : {
+      id: 'fixture-row', organizationId: org.id, providerIdentifier: 'instagram', type: 'social', deletedAt: null,
+      internalId: '123456789012345', ...change,
+    });
+    const getProvider = jest.spyOn(controller._integrationManager, 'getSocialIntegration');
+    await expect(controller.getIntegrationUrl('instagram', 'fixture-row', org, 'jarvis')).rejects.toMatchObject({ status: 400 });
+    expect(integrationService.getIntegrationById).toHaveBeenCalledWith(org.id, 'fixture-row');
+    expect(getProvider).not.toHaveBeenCalled();
+    expect(provider.generateAuthUrl).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+  it('stops on row lookup failure without generating OAuth state or writing Redis', async () => {
+    integrationService.getIntegrationById = jest.fn().mockRejectedValue(new Error('fixture lookup failure'));
+    await expect(controller.getIntegrationUrl('instagram', 'fixture-row', org, 'jarvis')).rejects.toThrow('fixture lookup failure');
+    expect(provider.generateAuthUrl).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+  it.each(['', 'fixture/row', 'fixture?row'])('rejects unsafe refresh row %s before lookup', async refresh => {
+    integrationService.getIntegrationById = jest.fn();
+    await expect(controller.getIntegrationUrl('instagram', refresh, org, 'jarvis')).rejects.toMatchObject({ status: 400 });
+    expect(integrationService.getIntegrationById).not.toHaveBeenCalled();
+    expect(provider.generateAuthUrl).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+  it('does not enable JARVIS refresh for another provider', async () => {
+    integrationService.getIntegrationById = jest.fn();
+    await expect(controller.getIntegrationUrl('tiktok', 'fixture-row', org, 'jarvis')).rejects.toMatchObject({ status: 400 });
+    expect(integrationService.getIntegrationById).not.toHaveBeenCalled();
+    expect(provider.generateAuthUrl).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+  it('does not migrate a JARVIS Instagram refresh to another provider', async () => {
+    integrationService.getIntegrationById = jest.fn();
+    controller._integrationManager.getMigrationTarget = () => 'tiktok';
+    await expect(controller.getIntegrationUrl('instagram', 'fixture-row', org, 'jarvis')).rejects.toMatchObject({ status: 400 });
+    expect(integrationService.getIntegrationById).not.toHaveBeenCalled();
+    expect(provider.generateAuthUrl).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
   it('keeps ordinary connections and refresh state unchanged', async () => {
+    integrationService.getIntegrationById = jest.fn();
     await controller.getIntegrationUrl('facebook', 'fixture-refresh-id', org);
+    expect(integrationService.getIntegrationById).not.toHaveBeenCalled();
     expect(redis.set.mock.calls).toEqual([
       ['refresh:fixture-state', 'fixture-refresh-id', 'EX', 3600],
       ['organization:fixture-state', org.id, 'EX', 3600],

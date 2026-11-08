@@ -408,6 +408,22 @@ export class PublicIntegrationsController {
       throw new BadRequestException('JARVIS return is not configured for this provider');
     }
 
+    // JARVIS sends a verified Postiz row ID; Instagram reConnect expects its internalId.
+    // Keep the ordinary Postiz refresh contract unchanged and never expose internalId.
+    if (returnTo === 'jarvis' && refresh !== undefined) {
+      if (integration !== 'instagram' || (migrateTo && migrateTo !== 'instagram') ||
+          typeof refresh !== 'string' || !/^[a-zA-Z0-9_-]{1,512}$/.test(refresh)) {
+        throw new BadRequestException('Invalid JARVIS refresh integration');
+      }
+      const row = await this._integrationService.getIntegrationById(org.id, refresh);
+      if (!row || row.id !== refresh || row.organizationId !== org.id ||
+          row.providerIdentifier !== 'instagram' || row.type !== 'social' || row.deletedAt !== null ||
+          typeof row.internalId !== 'string' || !/^[0-9]{1,512}$/.test(row.internalId)) {
+        throw new BadRequestException('Invalid JARVIS refresh integration');
+      }
+      refresh = row.internalId;
+    }
+
     const integrationProvider = this._integrationManager.getSocialIntegration(
       migrateTo || integration
     );
